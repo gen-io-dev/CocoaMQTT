@@ -19,6 +19,8 @@ public protocol CocoaMQTTWebSocketConnectionDelegate: AnyObject {
     
     func urlSessionConnection(_ conn: CocoaMQTTWebSocketConnection, didReceiveTrust trust: SecTrust, didReceiveChallenge challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
     
+    func urlSessionConnection(_ conn: CocoaMQTTWebSocketConnection, didReceiveChallenge challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+    
     func connectionOpened(_ conn: CocoaMQTTWebSocketConnection)
     
     func connectionClosed(_ conn: CocoaMQTTWebSocketConnection, withError error: Error?, withCode code: UInt16?)
@@ -268,6 +270,16 @@ extension CocoaMQTTWebSocket: CocoaMQTTWebSocketConnectionDelegate {
         }
     }
     
+    public func urlSessionConnection(_ conn: any CocoaMQTTWebSocketConnection, didReceiveChallenge challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if let del = delegate {
+            __delegate_queue {
+                del.socketUrlSession(self, didReceiveChallenge: challenge, completionHandler: completionHandler)
+            }
+        } else {
+            completionHandler(.performDefaultHandling, nil)
+        }
+    }
+    
     public func connection(_ conn: CocoaMQTTWebSocketConnection, didReceive trust: SecTrust, completionHandler: @escaping (Bool) -> Void) {
         if let del = delegate {
             __delegate_queue {
@@ -373,15 +385,19 @@ public extension CocoaMQTTWebSocket {
 extension CocoaMQTTWebSocket.FoundationConnection: URLSessionWebSocketDelegate {
     public func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         queue.async {
-            if let trust = challenge.protectionSpace.serverTrust, let delegate = self.delegate {
+            guard let delegate = self.delegate else {
+                completionHandler(.performDefaultHandling, nil)
+                return
+            }
+            if let trust = challenge.protectionSpace.serverTrust {
                 delegate.connection(self, didReceive: trust) { shouldTrust in
                     completionHandler(shouldTrust ? .performDefaultHandling : .rejectProtectionSpace, nil)
                 }
                 delegate.urlSessionConnection(self, didReceiveTrust: trust, didReceiveChallenge: challenge, completionHandler: completionHandler)
-                
-            } else {
-                completionHandler(.performDefaultHandling, nil)
+                return
             }
+            
+            delegate.urlSessionConnection(self, didReceiveChallenge: challenge, completionHandler: completionHandler)
         }
     }
     
@@ -457,7 +473,7 @@ extension CocoaMQTTWebSocket.StarscreamConnection: CertificatePinning {
 }
 
 extension CocoaMQTTWebSocket.StarscreamConnection: WebSocketDelegate {
-    public func didReceive(event: Starscream.WebSocketEvent, client: any Starscream.WebSocketClient) {
+    public func didReceive(event: Starscream.WebSocketEvent, client: Starscream.WebSocket) {
         switch event {
         case .connected(_):
             delegate?.connectionOpened(self)

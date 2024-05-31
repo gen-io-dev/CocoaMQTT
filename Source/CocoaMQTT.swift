@@ -79,6 +79,8 @@ import MqttCocoaAsyncSocket
     @objc optional func mqtt(_ mqtt: CocoaMQTT, didReceive trust: SecTrust, completionHandler: @escaping (Bool) -> Void)
 
     @objc optional func mqttUrlSession(_ mqtt: CocoaMQTT, didReceiveTrust trust: SecTrust, didReceiveChallenge challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+    
+    @objc optional func mqttUrlSession(_ mqtt: CocoaMQTT, didReceiveChallenge challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
 
     ///
     @objc optional func mqtt(_ mqtt: CocoaMQTT, didPublishComplete id: UInt16)
@@ -558,6 +560,7 @@ extension CocoaMQTT {
 
 // MARK: - CocoaMQTTSocketDelegate
 extension CocoaMQTT: CocoaMQTTSocketDelegate {
+   
     
     public func socketConnected(_ socket: CocoaMQTTSocketProtocol) {
         sendConnectFrame()
@@ -577,6 +580,12 @@ extension CocoaMQTT: CocoaMQTTSocketDelegate {
         printDebug("Call the SSL/TLS manually validating function - socketUrlSession")
 
         delegate?.mqttUrlSession?(self, didReceiveTrust: trust, didReceiveChallenge: challenge, completionHandler: completionHandler)
+    }
+    
+    public func socketUrlSession(_ socket: any CocoaMQTTSocketProtocol, didReceiveChallenge challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        printDebug("Call the SSL/TLS manually validating function - socketUrlSession")
+
+        delegate?.mqttUrlSession?(self, didReceiveChallenge: challenge, completionHandler: completionHandler)
     }
 
     // ?
